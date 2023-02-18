@@ -1,0 +1,58 @@
+{
+  "train": {
+    "csv_path_patient_1": "all_systems_attributes_patient_1.csv",
+    "csv_path_patient_2": "all_system_attributes_patient_3.csv",
+    "names_models": {
+      "mlp": "MLPClassifier",
+      "rf": "Random Forest",
+      "sgd": "Support Vector Machine",
+      "gnb": "Naive Bayes",
+      "lrc": "Logistic Regression",
+      "knnCl": "KNeighborsClassifier",
+      "treeCL": "DecisionTreeClassifier",
+      "shNet": "ShallowNet",
+      "UnetAtt": "UnetAtt"
+    },
+    "type_to_implementation": [
+      "UnetAtt",
+      "shNet",
+      "mlp",
+      "rf",
+      "sgd",
+      "gnb",
+      "lrc",
+      "treeCL",
+      "knnCl"
+    ],
+    "nr_epochs": 300
+  },
+  "statistics": {
+    "csv_path_patient_1": "all_systems_attributes_patient_1.csv",
+    "csv_path_patient_2": "all_system_attributes_patient_3.csv",
+    "names_models": {
+      "UnetAtt": "UnetAtt",
+      "mlp": "MLPClassifier",
+      "rf": "Random Forest",
+      "sgd": "Support Vector Machine",
+      "gnb": "Naive Bayes",
+      "lrc": "Logistic Regression",
+      "knnCl": "KNeighborsClassifier",
+      "treeCL": "DecisionTreeClassifier",
+      "shNet": "ShallowNet"
+
+    },
+    "type_to_implementation": [
+      "UnetAtt",
+      "shNet",
+      "mlp",
+      "rf",
+      "sgd",
+      "gnb",
+      "lrc",
+      "treeCL",
+      "knnCl"
+    ],
+    "nr_epochs": 250,
+    "nr_iterations": 10
+  }
+}
