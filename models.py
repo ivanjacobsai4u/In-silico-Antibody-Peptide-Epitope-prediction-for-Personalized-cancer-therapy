@@ -9,7 +9,8 @@ from torch.nn import Linear, ModuleList
 from torch_geometric.nn import HeteroConv, TransformerConv, JumpingKnowledge
 from torch_geometric.nn import global_mean_pool, GraphConv
 
-import findseq
+
+
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import SGDClassifier, LogisticRegression
 from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_split
@@ -22,7 +23,7 @@ from torch.utils.data import Dataset, DataLoader
 import numpy as np
 from torchvision.transforms import transforms
 from imblearn.over_sampling import RandomOverSampler
-
+import utils
 
 class TopologicalAttributesDataset(Dataset):
 
@@ -276,8 +277,8 @@ class ModelFactory:
 class HeteroGNN(torch.nn.Module):
     def __init__(self, nr_classes, layers, hidden=32):
         super().__init__()
-        self.aminoAcids = list(set(findseq.one_letter.values()))
-        self.aminoEmbedding = torch.nn.Embedding(len(set(list(findseq.one_letter.values()))) + 1, hidden)
+        self.aminoAcids = list(set(utils.one_letter.values()))
+        self.aminoEmbedding = torch.nn.Embedding(len(set(list(utils.one_letter.values()))) + 1, hidden)
         self.atomEmbedding = torch.nn.Embedding(109, hidden)
         self.hlaEmbedding = torch.nn.Embedding(300, hidden)
         self.hidden = hidden

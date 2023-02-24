@@ -2,7 +2,6 @@ import os.path
 
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning import Trainer
-from finetuning_scheduler import FinetuningScheduler
 from pytorch_lightning.callbacks import TQDMProgressBar, EarlyStopping, ModelCheckpoint
 import pandas as pd
 import csv
@@ -22,142 +21,14 @@ from torchmetrics.classification import BinaryAUROC, BinaryPrecision, BinaryReca
 
 from models import HeteroGNN
 from numpy import linalg as LA
-from pymnet import draw as pymnet_draw
-from pymnet import MultilayerNetwork, MultiplexNetwork
+import torch.nn as nn
+import torch.nn.functional as F
+import torch
 import math
 import networkx as nx
 from py3plex.core import multinet
 import torch
 import numpy as np
-
-
-#
-# def prepare_training_data(patient, hla_alleles,output_file,tcell_table_file):
-#     # read tcell assays table
-#     assay_dict = {}
-#     with open(tcell_table_file, 'r',encoding='utf-8') as input_handle:
-#         csv_reader = csv.reader(input_handle, delimiter=',')
-#         header_1 = next(csv_reader)
-#         header_2 = next(csv_reader)
-#         header_list = []
-#         for x, y in zip(header_1, header_2):
-#             header_list.append(':'.join([x, y]))
-#         for row in csv_reader:
-#             assert len(row) == len(header_list)
-#             assay = {}
-#             for x, y in zip(header_list, row):
-#                 assay[x] = y
-#             assay_id = assay['Reference:Assay IRI']
-#             assay_dict[assay_id] = assay
-#     print("len(assay_dict) =", len(assay_dict))
-#
-#     print("patient =", patient)
-#     print("hla_alleles =", hla_alleles)
-#     # assay_filtered = []
-#     # for assay in assay_dict.values():
-#     #     allele = assay['MHC:Allele Name']
-#     #     epitope_type = assay['Epitope:Object Type']
-#     #     if hla_alleles:
-#     #         if (allele in hla_alleles and epitope_type == "Linear peptide"):
-#     #             assay_filtered.append(assay)
-#     #     else:
-#     #         if (epitope_type == "Linear peptide"):
-#     #             assay_filtered.append(assay)
-#
-#     print("len(assay_filtered) =", len(assay_dict.values()))
-#     peptide_set = set([x['Epitope:Description'] for x in assay_dict.values()])
-#     print("len(peptide_set) =", len(peptide_set))
-#     print()
-#
-#     # output temporary csv
-#     with open(output_file, 'w') as output_handle:
-#         # fieldnames = ['Reference:T Cell ID',
-#         #               'Reference:Reference ID',
-#         #               'MHC:Allele Name',
-#         #               'Epitope:Epitope ID',
-#         #               'Epitope:Object Type',
-#         #               'Epitope:Description',
-#         #               'Assay:Qualitative Measure',
-#         #               ]
-#         fieldnames = assay_dict.values()[0].keys()
-#         csv_writer = csv.DictWriter(output_handle, fieldnames, delimiter=',')
-#         csv_writer.writeheader()
-#         for assay in assay_dict.values():
-#             assay_subset = {k: v for k, v in assay.items() if k in fieldnames}
-#             csv_writer.writerow(assay_subset)
-# aa_list = ['_PAD',
-#            'A',
-#            'R',
-#            'N',
-#            'D',
-#            'C',
-#            'E',
-#            'Q',
-#            'G',
-#            'H',
-#            'I',
-#            'L',
-#            'K',
-#            'M',
-#            'F',
-#            'P',
-#            'S',
-#            'T',
-#            'W',
-#            'Y',
-#            'V',
-#           ]
-# vocab_size = len(aa_list)
-# aa2index = {}
-# index2aa = {}
-# for index, aa in enumerate(aa_list):
-#     aa2index[aa] = index
-#     index2aa[index] = aa
-def vizualize_layers(A, show=True, layerOrderDict={}, figsize=(42, 25),
-                     nodeSizeRule={"rule": "degree", "propscale": 0.05}, elev=8, azim=5,
-                     edgeColorRule={"rule": "edgeweight", "colormap": "jet", "scaleby": 0.5}):
-    '''
-
-    Args:
-        A: multiplex
-        show: show plot
-        layerOrderDict: the order of the layers for vizualization
-        figsize: the size of the figure
-        nodeSizeRule: the rule for the node size e.g. degree
-
-    Returns:
-
-    '''
-
-    mplex = MultilayerNetwork(aspects=1);
-    for g in A.get_edges(True):
-        mplex[g[0][0], g[1][0], g[0][1], g[1][1]] = 1
-
-    pymnet_draw(mplex, show=show,
-                figsize=figsize, layerPadding=0.6, layergap=0.6, defaultLayerAlpha=0.3,
-                layout="spring", elev=elev, azim=azim,
-                nodeColorDict={(0, 0): "r", (1, 0): "r", (0, 1): "r"},
-                nodeLabelRule={}, defaultLayerLabelLoc=(0, 1),
-                layerOrderDict=layerOrderDict,
-                defaultLayerLabelSize=18,
-                edgeColorRule=edgeColorRule,
-                nodeSizeRule=nodeSizeRule);
-
-
-def viz_newtwork(A, name=None):
-    mplex = MultilayerNetwork(aspects=1)
-    for g in A.get_edges(True):
-        mplex[g[0][0], g[1][0], g[0][1], g[1][1]] = 1
-    fig = pymnet_draw(mplex, show=True,
-                      figsize=(25, 25), layerPadding=0.6, layergap=0.6, defaultLayerAlpha=0.3, layout="spring", elev=18,
-                      azim=55, defaultLayerLabelLoc=(1, 1),
-                      nodeColorDict={(0, 0): "r", (1, 0): "r", (0, 1): "r"},
-                      nodeLabelRule={},
-                      defaultLayerLabelSize=12,
-                      edgeColorRule={"rule": "edgeweight", "colormap": "jet", "scaleby": 0.1},
-                      nodeSizeRule={"rule": "degree", "propscale": 0.05})
-    if name:
-        fig.savefig(name)
 
 
 def compute_attributes(data, layers=['system', 'complex', 'polymer', 'monomer', 'atom', 'coord']):
@@ -170,8 +41,7 @@ def compute_attributes(data, layers=['system', 'complex', 'polymer', 'monomer', 
         matched_pbmc = list(map(lambda x: x[-1]['y'],
                                 list(filter(lambda x: 'system' in x[0], list(system.core_network.nodes(True))))))[0]
         system = system.subnetwork(layers, subset_by="layers")
-        # vectors=np.cov(np.squeeze(np.array(list(map(lambda x: x[-1] ,system.core_network.nodes(data='x')   ))))).mean()
-        # vectors=np.squeeze(np.array(list(map(lambda x: x[-1] ,system.core_network.nodes(data='x')   )))).mean()
+
         # -----------------------Multiplex measures-----------------------
         # -------------- Overlapping degree--------------
         layer_names, separate_layers, multiedges = converters.prepare_for_parsing(system.core_network)
@@ -203,11 +73,7 @@ def compute_attributes(data, layers=['system', 'complex', 'polymer', 'monomer', 
         average_participation_coefficient = np.sum(P) / (list(system.get_nodes())).__len__()
         layer.adjacency()
         # --------------Multiplex node   interdependence --------------
-        # complexes=list(combinations(
-        #     [node_highest_layer for node_highest_layer in separate_layers[layer_names.index('complex')].nodes()], 2))
-        # for node_highest_layer in separate_layers[layer_names.index('complex')].nodes():
-        #     path_length=nx.single_source_shortest_path_length(system.core_network, node_highest_layer)
-        #     for layer_name, layer in zip(layer_names, separate_layers):
+
         # Supra centrality
         layers_pagerank_centr = 0
         for layer_name, layer in zip(layer_names, separate_layers):
@@ -229,9 +95,6 @@ def compute_attributes(data, layers=['system', 'complex', 'polymer', 'monomer', 
         node_color = np.ones((v_2.shape[0], 1)).astype(float)
         # # Assign 0.0 for the blue color
         node_color[v_2 < 0] = 0.0;
-        #         hubs, autho = nx.hits(G)
-
-        #         h_a = np.array(np.array(list(hubs.values())) > np.array(list(autho.values()))).astype(int).mean()
 
         trans = nx.transitivity(G);
         nr_nodes = system.monoplex_nx_wrapper("number_of_nodes")
@@ -269,16 +132,13 @@ def compute_attributes(data, layers=['system', 'complex', 'polymer', 'monomer', 
         except Exception as exc:
             diameter = 0
 
-        h, a = nx.hits(system.core_network)
-        avg_v_hubs = (1.0 / nr_nodes) * np.sum([v for v in h.values()])
-        avg_v_authorities = (1.0 / nr_nodes) * np.sum([v for v in a.values()])
         d = {
             'avg_layers_pagerank_centr': avg_layers_pagerank_centr,
             'average_participation_coefficient': average_participation_coefficient,
             'average_overlapping_degree': average_overlapping_degree,
             's_largest_component': s_1,
             'laplacianv_2': node_color.mean(),
-            #            'hubs_auth': h_a,
+
             'global_clus_coefficient': global_clus,
             'transitivity': trans,
             'average_k': 2 * nr_edges / nr_nodes,
@@ -288,8 +148,7 @@ def compute_attributes(data, layers=['system', 'complex', 'polymer', 'monomer', 
             "diameter": diameter,
             'density': density,
             'vectors': vectors,
-            #            'avg_v_hubs':avg_v_hubs,
-            #            'avg_v_authorities':avg_v_authorities,
+
             'average_betweenness_centrality': average_betweenness_centrality,
             'closeness_centrality': closeness_centrality,
             'current_flow_closeness_centrality': current_flow_closeness_centrality,
@@ -316,46 +175,6 @@ IEDB_response_code = {'Positive': 1,
                       }
 MAX_LEN = 15
 
-
-# allellist=pd.read_csv(allellist_file, sep=",")
-# allellist=allellist.astype({column:'string' for column in allellist.columns})
-
-# fasta_sequences = SeqIO.parse(open(hlalleles_prot_fastas_seq),'fasta')
-# alles_fastea_seq_df=pd.DataFrame([ {'AlleleID':str(fasta.id),"Description": fasta.description,"Sequence":str(fasta.seq)} for fasta in fasta_sequences])
-# alles_fastea_seq_df=alles_fastea_seq_df.astype({column:'string' for column in alles_fastea_seq_df.columns})
-# alles_fastea_seq_df['AlleleID']=alles_fastea_seq_df['AlleleID'].apply(lambda x:x.replace('HLA:',''))
-#
-# allellist=allellist.merge(alles_fastea_seq_df,on='AlleleID')
-# allellist=allellist.drop_duplicates()
-# allellist['Sequence']=allellist['Sequence'].str.strip()
-#
-#
-# with open(tcell_table_file, 'r', encoding='utf-8') as input_handle:
-#     csv_reader = csv.reader(input_handle, delimiter=',')
-#     header_1 = next(csv_reader)
-#     header_2 = next(csv_reader)
-#     header_list = []
-#     for x, y in zip(header_1, header_2):
-#         header_list.append(':'.join([x, y]))
-# # patient = "mel15"
-# # hla_alleles = ["HLA-A*03:01", "HLA-A*68:01", "HLA-B*27:05", "HLA-B*35:03", "HLA-C*02:02", "HLA-C*04:01"]
-# # prepare_training_data(patient, None,output_file,tcell_table_file)
-# mhc_full=pd.read_csv(tcell_table_file,skiprows=2)
-# mhc_full.columns=header_list
-# mhc_full['Allele']=mhc_full['MHC:Allele Name'].apply(lambda x: x.replace("HLA-",''))
-# mhc_full['Epitope:Description']=mhc_full['Epitope:Description'].str.strip()
-# idx=mhc_full['Epitope:Description'].str.contains(' ')
-# mhc_full.loc[idx,'Epitope:Description']=mhc_full.loc[idx,'Epitope:Description'].apply(lambda x: x[0:x.index(' ')])
-# mhc_filtered=mhc_full[(mhc_full['Allele'].isin(allellist.Allele))]
-#
-# mhc_filtered=mhc_filtered[mhc_filtered['Epitope:Parent Species']=='Homo sapiens']
-#
-# mhc_filtered=mhc_filtered.merge(allellist,on='Allele')
-# mhc_filtered.rename(columns={"Description": "Allele:Description", "Sequence": "Allele:Sequence"})
-#
-#
-# mhc_filtered['y']=mhc_filtered['Assay:Qualitative Measure'].apply(lambda x: IEDB_response_code[x])
-#
 
 def calculate_measures(input_df):
     device = torch.device(torch.cuda.current_device())
@@ -418,10 +237,6 @@ def calculate_measures(input_df):
     return pd.DataFrame(result)
 
 
-# filtered_with_network_measures=mhc_filtered.pipe(calculate_measures)
-
-
-# filtered_with_network_measures.to_csv('D:/study/rit/DSCI.799.01-GraduateCapstone/HLAPeptideInteraction/datasets/cedar/raw/filtered_with_network_measures.csv',index=False)
 import pytorch_lightning as pl
 
 
@@ -434,10 +249,10 @@ class NetworkMeasuresDataModule(pl.LightningDataModule):
                  tcell_table_file,
                  hlalleles_prot_fastas_seq,
                  allellist_file, transformation_function, batch_size=32,
-                 data_dir='cedar/processed/',
+                 data_dir='data/datasets/cedar/processed/',
                  patient_one_file_name='PatientOne.xlsx',
                  patient_two_file_name='PatientTwo.xlsx',
-                 file_name="tcr_filtered_with_network_measures.csv",
+
                  type='train', filter_criteria={'Epitope:Parent Species': 'Homo sapiens'},
                  IEDB_response_code={'Positive': 1,
                                      'Positive-High': 1,
@@ -445,13 +260,13 @@ class NetworkMeasuresDataModule(pl.LightningDataModule):
                                      'Positive-Low': 1,
                                      'Negative': 0,
                                      },
-                 root_folder='datasets/cedar/',
+                 root_folder='data/datasets/cedar/',
                  cell_tissue_type=None,
-                 dest_name="tcr_filtered_with_network_measures.csv"):
+                 dest_name="tcr_network_measures"):
         super().__init__()
         self.prepare_data_per_node = True
         self.data_dir = data_dir
-        self.file_name = file_name
+
         self.type = type
         self.tcell_table_file = tcell_table_file
         self.hlalleles_prot_fastas_seq = hlalleles_prot_fastas_seq
@@ -460,18 +275,24 @@ class NetworkMeasuresDataModule(pl.LightningDataModule):
         self.filter_criteria = filter_criteria
         self.transformation_function = transformation_function
         self.root_folder = root_folder
-        self.dest_name = dest_name
+        self.dest_name = dest_name if cell_tissue_type is None else dest_name + "_{}".format(cell_tissue_type)
         self.batch_size = batch_size
         self.patient_one_file_name = patient_one_file_name
         self.patient_two_file_name = patient_two_file_name
         self.patient_one_alleles = ['B*57:01', 'A*11:01:01', 'A*03:01:01', 'B*15:32:01', 'B*13:01:01', 'C*07:02:01',
                                     'C*12:03:0']
-        self.cell_tissue_type=cell_tissue_type
+        self.cell_tissue_type = cell_tissue_type
 
     def prepare_data(self):
+        if not os.path.isdir('data/datasets'):
+            os.mkdir('data/datasets')
+        if not os.path.isdir(self.root_folder):
+            os.mkdir(self.root_folder)
         if not os.path.isdir(os.path.join(self.root_folder, 'processed')):
             os.mkdir(os.path.join(self.root_folder, 'processed'))
-        if not os.path.isfile(os.path.join(self.root_folder, 'processed', self.dest_name)):
+        if not os.path.isfile(os.path.join(self.root_folder, 'processed', self.dest_name + '.csv')):
+            print(
+                '---------------------------Preparing data----------------------------------------------------------------------------------------------------')
             allellist = pd.read_csv(self.allellist_file, sep=",")
             allellist = allellist.astype({column: 'string' for column in allellist.columns})
             fasta_sequences = SeqIO.parse(open(self.hlalleles_prot_fastas_seq), 'fasta')
@@ -509,13 +330,7 @@ class NetworkMeasuresDataModule(pl.LightningDataModule):
             allellist['Allele'] = allellist.Allele.apply(
                 lambda x: ''.join(x.split(':')[0:1]) + ':' + ''.join(x.split(':')[1:2]))
 
-            # matched_alleles = mhc_full[
-            #     mhc_full.Allele.isin([modify_allele_name(al) for al in self.patient_one_alleles])].Allele.unique()
-            # missing_alleles = [modify_allele_name(al) for al in self.patient_one_alleles if
-            #                    modify_allele_name(al) not in matched_alleles]
-
             mhc_filtered = mhc_full[(mhc_full['Allele'].isin(allellist.Allele))]
-
 
             mhc_filtered['Sequence'] = mhc_filtered.Allele.apply(
                 lambda x: allellist.loc[allellist.Allele == x, 'Sequence'].unique()[0])
@@ -523,73 +338,97 @@ class NetworkMeasuresDataModule(pl.LightningDataModule):
             mhc_filtered.rename(columns={"Description": "Allele:Description", "Sequence": "Allele:Sequence"})
             mhc_filtered['y'] = mhc_filtered['Assay:Qualitative Measure'].apply(lambda x: self.IEDB_response_code[x])
 
-            filter=(mhc_filtered['Epitope:Parent Species'] == 'Homo sapiens')     & (mhc_filtered['Epitope:Description'].str.len() <= 25)    & (mhc_filtered['Epitope:Description'].str.len() >= 8) & (mhc_filtered['MHC:Class'] == 'I')
+            filter = (mhc_filtered['Epitope:Parent Species'] == 'Homo sapiens') & (
+                    mhc_filtered['Epitope:Description'].str.len() <= 25) & (
+                             mhc_filtered['Epitope:Description'].str.len() >= 8) & (
+                             mhc_filtered['MHC:Class'] == 'I')
             if self.cell_tissue_type is not None:
-                filter =(mhc_filtered['Epitope:Parent Species'] == 'Homo sapiens')     & (mhc_filtered['Epitope:Description'].str.len() <= 25)    & (mhc_filtered['Epitope:Description'].str.len() >= 8) & (mhc_filtered['MHC:Class'] == 'I') & (mhc_filtered['Antigen Presenting Cells:Cell Tissue Type'] == self.cell_tissue_type)
+                filter = (mhc_filtered['Epitope:Parent Species'] == 'Homo sapiens') & (
+                        mhc_filtered['Epitope:Description'].str.len() <= 25) & (
+                                 mhc_filtered['Epitope:Description'].str.len() >= 8) & (
+                                 mhc_filtered['MHC:Class'] == 'I') & (
+                                 mhc_filtered['Antigen Presenting Cells:Cell Tissue Type'] == self.cell_tissue_type)
             mhc_filtered = mhc_filtered[filter]
             filtered_with_network_measures = mhc_filtered.pipe(self.transformation_function)
-            filtered_with_network_measures.to_csv(os.path.join(self.root_folder, 'processed', self.dest_name),
+            filtered_with_network_measures.to_csv(os.path.join(self.root_folder, 'processed', self.dest_name + '.csv'),
                                                   index=False)
-        if not os.path.isfile(
-                os.path.join(self.root_folder, 'processed', self.patient_one_file_name.replace('.xlsx', '.csv'))):
-            allellist = pd.read_csv(self.allellist_file, sep=",")
-            allellist = allellist.astype({column: 'string' for column in allellist.columns})
-            fasta_sequences = SeqIO.parse(open(self.hlalleles_prot_fastas_seq), 'fasta')
-            alles_fastea_seq_df = pd.DataFrame(
-                [{'AlleleID': str(fasta.id), "Description": fasta.description, "Sequence": str(fasta.seq)} for fasta in
-                 fasta_sequences])
-            alles_fastea_seq_df = alles_fastea_seq_df.astype(
-                {column: 'string' for column in alles_fastea_seq_df.columns})
-            alles_fastea_seq_df['AlleleID'] = alles_fastea_seq_df['AlleleID'].apply(lambda x: x.replace('HLA:', ''))
+            mhc_filtered.to_csv(os.path.join(self.root_folder, 'processed', self.dest_name + '_full.csv'), index=False)
 
-            allellist = allellist.merge(alles_fastea_seq_df, on='AlleleID')
-            allellist = allellist.drop_duplicates()
-            allellist['Sequence'] = allellist['Sequence'].str.strip()
-            patient_one_df = pd.read_excel(os.path.join(self.root_folder, 'raw', self.patient_one_file_name),
-                                           engine='openpyxl')
-            patient_one_df['y'] = pd.cut(patient_one_df['y'], 2, include_lowest=True, labels=[0, 1], )
-            patient_one_df['Epitope:Description'] = patient_one_df['Epitope:Description'].str.strip()
-            idx = patient_one_df['Epitope:Description'].str.contains(' ')
-            patient_one_df.loc[idx, 'Epitope:Description'] = patient_one_df.loc[idx, 'Epitope:Description'].apply(
-                lambda x: x[0:x.index(' ')])
-
-            allellist['AlleleOrig'] = allellist.Allele
-            patient_one_df['AlleleOrig'] = patient_one_df['Allele']
-
-            patient_one_df['Allele'] = patient_one_df.Allele.apply(
-                lambda x: ''.join(x.split(':')[0:1]) + ':' + ''.join(x.split(':')[1:2]))
-            allellist['Allele'] = allellist.Allele.apply(
-                lambda x: ''.join(x.split(':')[0:1]) + ':' + ''.join(x.split(':')[1:2]))
-
-            patient_one_df = patient_one_df[(patient_one_df['Allele'].isin(allellist.Allele))]
-            # patient_one_df = patient_one_df.merge(allellist, on='Allele')
-            patient_one_df['Sequence'] = patient_one_df.Allele.apply(
-                lambda x: allellist.loc[allellist.Allele == x, 'Sequence'].unique()[0])
-            patient_one = patient_one_df.pipe(self.transformation_function)
-            patient_one.to_csv(
-                os.path.join(self.root_folder, 'processed', self.patient_one_file_name.replace('xlsx', 'csv')),
-                index=False)
+        # if not os.path.isfile(
+        #         os.path.join(self.root_folder, 'processed', self.patient_one_file_name.replace('.xlsx', '.csv'))):
+        #     allellist = pd.read_csv(self.allellist_file, sep=",")
+        #     allellist = allellist.astype({column: 'string' for column in allellist.columns})
+        #     fasta_sequences = SeqIO.parse(open(self.hlalleles_prot_fastas_seq), 'fasta')
+        #     alles_fastea_seq_df = pd.DataFrame(
+        #         [{'AlleleID': str(fasta.id), "Description": fasta.description, "Sequence": str(fasta.seq)} for fasta in
+        #          fasta_sequences])
+        #     alles_fastea_seq_df = alles_fastea_seq_df.astype(
+        #         {column: 'string' for column in alles_fastea_seq_df.columns})
+        #     alles_fastea_seq_df['AlleleID'] = alles_fastea_seq_df['AlleleID'].apply(lambda x: x.replace('HLA:', ''))
+        #
+        #     allellist = allellist.merge(alles_fastea_seq_df, on='AlleleID')
+        #     allellist = allellist.drop_duplicates()
+        #     allellist['Sequence'] = allellist['Sequence'].str.strip()
+        #     patient_one_df = pd.read_excel(os.path.join(self.root_folder, 'raw', self.patient_one_file_name),
+        #                                    engine='openpyxl')
+        #     patient_one_df['y'] = pd.cut(patient_one_df['y'], 2, include_lowest=True, labels=[0, 1], )
+        #     patient_one_df['Epitope:Description'] = patient_one_df['Epitope:Description'].str.strip()
+        #     idx = patient_one_df['Epitope:Description'].str.contains(' ')
+        #     patient_one_df.loc[idx, 'Epitope:Description'] = patient_one_df.loc[idx, 'Epitope:Description'].apply(
+        #         lambda x: x[0:x.index(' ')])
+        #
+        #     allellist['AlleleOrig'] = allellist.Allele
+        #     patient_one_df['AlleleOrig'] = patient_one_df['Allele']
+        #
+        #     patient_one_df['Allele'] = patient_one_df.Allele.apply(
+        #         lambda x: ''.join(x.split(':')[0:1]) + ':' + ''.join(x.split(':')[1:2]))
+        #     allellist['Allele'] = allellist.Allele.apply(
+        #         lambda x: ''.join(x.split(':')[0:1]) + ':' + ''.join(x.split(':')[1:2]))
+        #
+        #     patient_one_df = patient_one_df[(patient_one_df['Allele'].isin(allellist.Allele))]
+        #     # patient_one_df = patient_one_df.merge(allellist, on='Allele')
+        #     patient_one_df['Sequence'] = patient_one_df.Allele.apply(
+        #         lambda x: allellist.loc[allellist.Allele == x, 'Sequence'].unique()[0])
+        #     patient_one = patient_one_df.pipe(self.transformation_function)
+        #     patient_one.to_csv(
+        #         os.path.join(self.root_folder, 'processed', self.patient_one_file_name.replace('xlsx', 'csv')),
+        #         index=False)
 
     def setup(self, stage: str):
         if stage == "fit":
-            torch.manual_seed(0)
-            dataset = NetworkMeasuresDataset(dir=self.data_dir, file_name=self.file_name)
-            train_size = int(0.8 * len(dataset))
-            test_size = len(dataset) - train_size
 
-            self.train_dataset, self.val_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
+            data = pd.read_csv(os.path.join(self.data_dir, self.dest_name + '.csv'))
+
+
+            y = data.pop('matched_pbmc')
+            X = data
+            X_train, X_val, y_train, y_val   = train_test_split(X, y, test_size=0.1, random_state=1)
+
+            X_train,  X_test, y_train, y_test  = train_test_split(X_train, y_train, test_size=0.111, random_state=1)  # 0.111 x 0.9 = 0.1
+
+            self.train_dataset = NetworkMeasuresDataset(X_train,y_train,resample=True)
+            self.val_dataset = NetworkMeasuresDataset(X_val,y_val,resample=False)
 
         if stage == "test":
-            torch.manual_seed(0)
-            dataset = NetworkMeasuresDataset(dir=self.data_dir, file_name=self.file_name)
-            train_size = int(0.8 * len(dataset))
-            test_size = len(dataset) - train_size
+            data = pd.read_csv(os.path.join(self.data_dir, self.dest_name + '.csv'))
 
-            _, self.test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
+            y = data.pop('matched_pbmc')
+            X = data
+            X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=1)
 
+            X_train, X_test, y_train, y_test = train_test_split(X_train, y_train, test_size=0.125,
+                                                                random_state=1)  # 0.25 x 0.8 = 0.2
+
+            self.test_dataset = NetworkMeasuresDataset(X_test,y_test,resample=False)
 
         if stage == "predict":
-            self.predict_dataset = NetworkMeasuresDataset(dir=self.data_dir, file_name=self.file_name)
+
+            data = pd.read_csv(os.path.join(self.data_dir, self.dest_name + '.csv'))
+
+            y = data.pop('matched_pbmc')
+            X = data
+            self.predict_dataset = NetworkMeasuresDataset(X,y,
+                                                          resample=False)
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.batch_size)
@@ -606,19 +445,15 @@ class NetworkMeasuresDataModule(pl.LightningDataModule):
 
 class NetworkMeasuresDataset(Dataset):
 
-    def __init__(self, dir, file_name, resample=True):
-        self.data = pd.read_csv(os.path.join(dir, file_name))
+    def __init__(self, x,y, resample=True):
 
-        # self.data=self.data.groupby('matched_pbmc')
-        # self.data = self.data.apply(lambda x: x.sample(self.data.size().max(),replace=True).reset_index(drop=True))
+
         ros = RandomOverSampler(random_state=1)
-        self.y = self.data.pop('matched_pbmc')
-        self.x = self.data
+        self.y = y
+        self.x = x
         if resample:
             self.x, self.y = ros.fit_resample(self.x, self.y)
-        # self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.data, self.data['matched_pbmc'], test_size=0.2, random_state=1)
-        # self.X_train.pop('matched_pbmc')
-        # self.X_test.pop('matched_pbmc')
+
         self.Y = torch.LongTensor(np.array(self.y))
         self.X = torch.Tensor(np.array(self.x))
 
@@ -645,13 +480,11 @@ class LitUnet(pl.LightningModule):
         self.f1_valid = F1Score(task='binary')
         self.auroc_val = AUROC(task='binary')
 
-
         self.f1_test = F1Score(task='binary')
         self.test_acc = torchmetrics.Accuracy(task='binary')
         self.test_precision = BinaryPrecision()
         self.test_recall = BinaryRecall()
         self.test_auroc = AUROC(task='binary')
-
 
         self.learning_rate = learning_rate
 
@@ -662,10 +495,7 @@ class LitUnet(pl.LightningModule):
         self.accuracy(torch.argmax(y_pred, -1), y)
         self.f1_train(torch.argmax(y_pred, -1), y)
         self.auroc_train(torch.argmax(y_pred, -1), y)
-        # self.log('train_acc_step', self.accuracy, on_step=True, on_epoch=True)
-        # self.log('train_f1_step', self.f1_train, on_step=True, on_epoch=True)
-        # self.log("train_loss", loss, on_step=True, on_epoch=True)
-        # self.log('train_auroc', self.accuracy, on_step=True, on_epoch=True)
+
         self.log_dict(
             {'train_loss': loss, "train_f1": self.f1_train, 'train_auroc': self.auroc_train,
              'train_acc': self.accuracy}, on_step=True, on_epoch=True)
@@ -677,22 +507,32 @@ class LitUnet(pl.LightningModule):
         y_pred = self.model(x)
         return torch.argmax(y_pred, -1), y
 
+    def predict_step(self, batch, batch_idx):
+        x, y = batch
+
+        y_pred = self.model(x)
+
+        return torch.argmax(y_pred, -1)
+
+    def on_predict_epoch_end(self, results) -> None:
+        return torch.cat([y_pred for y_pred in results[0]])
+
     def test_epoch_end(self, output_results):
         # this out is now the full size of the batch
-        y_pred=torch.cat([y_pred for y_pred, _ in output_results])
-        y=torch.cat([y for _, y in output_results])
-        self.f1_test(y_pred,y)
-        self.test_acc(y_pred,y)
-        self.test_precision(y_pred,y)
-        self.test_recall(y_pred,y)
-        self.test_auroc(y_pred,y)
+        y_pred = torch.cat([y_pred for y_pred, _ in output_results])
+        y = torch.cat([y for _, y in output_results])
+        self.f1_test(y_pred, y)
+        self.test_acc(y_pred, y)
+        self.test_precision(y_pred, y)
+        self.test_recall(y_pred, y)
+        self.test_auroc(y_pred, y)
 
         self.log_dict({
-          'test_f1': self.f1_test,
-          'test_acc': self.test_acc,
-          'test_auroc': self.test_auroc,
-          'test_precision': self.test_precision,
-          'test_recall': self.test_recall}, on_step=False, on_epoch=True)
+            'test_f1': self.f1_test,
+            'test_acc': self.test_acc,
+            'test_auroc': self.test_auroc,
+            'test_precision': self.test_precision,
+            'test_recall': self.test_recall}, on_step=False, on_epoch=True)
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
@@ -704,10 +544,6 @@ class LitUnet(pl.LightningModule):
         self.val_precision(torch.argmax(y_pred, -1), y)
         self.val_recall(torch.argmax(y_pred, -1), y)
 
-        # self.log("valid_loss", loss)
-        # self.log('valid_f1_step', self.f1_valid, on_step=True, on_epoch=True)
-        # self.log('valid_acc', self.valid_acc, on_step=True, on_epoch=True)
-        # self.log('valid_auroc', self.auroc_val, on_step=True, on_epoch=True)
         self.log_dict({'val_loss': loss,
                        'val_f1': self.f1_valid,
                        'val_acc': self.valid_acc,
@@ -717,33 +553,10 @@ class LitUnet(pl.LightningModule):
                       on_step=True, on_epoch=True)
         return loss
 
-    # def training_epoch_end(self, outs):
-    #     self.log_dict(
-    #         { "train_f1": self.f1_train, 'train_auroc': self.auroc_train, 'train_acc': self.accuracy},
-    #         on_step=False, on_epoch=True)
-    #     # log epoch metric
-    #     # self.log('train_acc_epoch', self.accuracy)
-    #     # self.log('valid_acc_epoch', self.valid_acc)
-    #     # self.log ('train_f1_epoch', self.f1_train)
-    #     # self.log('valid_f1_epoch', self.f1_valid)
-    #     #
-    #     # self.log("performance_training_epoch", {"train_f1": self.f1_train, 'train_auroc': self.auroc_train,"train_acc":self.accuracy,}, on_step=False, on_epoch=True)
-    #     # self.log("performance_valid_epoch",
-    #     #          {"val_f1": self.f1_valid, 'val_auroc': self.auroc_val, "val_acc": self.valid_acc, }, on_step=True, on_epoch=False)
-    #
-    # def validation_epoch_end(self, outs) -> None:
-    #     self.log_dict(
-    #         { "val_f1": self.f1_valid, 'val_acc': self.valid_acc, 'val_auroc': self.auroc_val},
-    #         on_step=False, on_epoch=True)
     def configure_optimizers(self):
         optimizer = torch.optim.SGD(self.parameters(), lr=self.learning_rate, momentum=0.9)
         # optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         return optimizer
-
-
-import torch.nn as nn
-import torch.nn.functional as F
-import torch
 
 
 class Attention_block(nn.Module):
@@ -865,75 +678,33 @@ class UnetAtt(torch.nn.Module):
         return x10
 
 
-# read training data
-# training_data_file = "training_data_copy.csv"
-# training_pair_list = []
-# peptides_with_unknown_aa = 0
-# allele_freq_dict = {}
-# with open(training_data_file, 'r') as input_handle:
-#     csv_reader = csv.DictReader(input_handle, delimiter=',')
-#     for row in csv_reader:
-#         peptide = row['Epitope:Description']
-#         peptide = list(peptide)
-#         peptide_assertion = True
-#         for aa in peptide:
-#             if aa not in aa_list:
-#                 peptide_assertion = False
-#                 break
-#         if not peptide_assertion:
-#             peptides_with_unknown_aa += 1
-#             continue
-#         response = IEDB_response_code[row['Assay:Qualitative Measure']]
-#         allele = row['MHC:Allele Name']
-#         if allele in allele_freq_dict:
-#             allele_freq_dict[allele] += 1
-#         else:
-#             allele_freq_dict[allele] = 1
-#         training_pair_list.append([peptide, response])
-#
-# print("allele_freq_dict =", allele_freq_dict)
-# print("peptides_with_unknown_aa = ", peptides_with_unknown_aa)
-# print("len(training_pair_list) = ", len(training_pair_list))
-# print("  positive = ", len([y for x, y in training_pair_list if y == 1]))
-# print("  negative = ", len([y for x, y in training_pair_list if y == 0]))
-# print("training_pair_list[0] = ", training_pair_list[0])
-# training_data=pd.read_csv(training_data_file)
-# training_data['y']=training_data['Assay:Qualitative Measure'].apply(lambda x: IEDB_response_code[x])
-#
-# normal_hla_file = 'D:/study/rit/DSCI.799.01-GraduateCapstone/HLAPeptideInteraction/datasets/deepImmun/raw/' + patient + "_normal_hla.txt"  # "mel15_normal_hla.txt"
-# with open(normal_hla_file, 'r') as input_handle:
-#     normal_hla = input_handle.readlines()
-#     normal_hla = [x.strip() for x in normal_hla]
-# normal_hla_neg = normal_hla
-#
-# normal_hla_neg_product_df=pd.DataFrame([ [None, None,hla,None,None,petide,list(IEDB_response_code.keys())[list(IEDB_response_code.values()).index(0)],0] for hla,petide in itertools.product(hla_alleles, normal_hla)],columns=training_data.columns)
-#
-# training_data_merged_neg_hla=training_data.append(normal_hla_neg_product_df, ignore_index=True)
-# for id, group in training_data.groupby(['Reference:Reference ID','y']):
-#    print(group.loc[:,['MHC:Allele Name','Epitope:Description','y']])
 output_file = "training_data_copy.csv"
-tcell_table_file = 'tcell_full_v3.csv'
-hlalleles_prot_fastas_seq = 'hla_prot.fasta'
-allellist_file = 'Allelelist.txt'
+tcell_table_file = 'data/tcell_full_v3.csv'
+hlalleles_prot_fastas_seq = 'data/hla_prot.fasta'
+allellist_file = 'data/Allelelist.txt'
+cell_tissue_type = 'Lymphoid'
 dm = NetworkMeasuresDataModule(tcell_table_file=tcell_table_file, hlalleles_prot_fastas_seq=hlalleles_prot_fastas_seq,
                                allellist_file=allellist_file, transformation_function=calculate_measures,
-                               batch_size=512)
+                               batch_size=512, cell_tissue_type=cell_tissue_type)
 
 dm.prepare_data()
 dm.setup(stage="fit")
-model_version = 'tcr_all'
-models_dir='trained_models_task_fine_tune'
+model_version = 'tcr_{}'.format(cell_tissue_type)
+models_dir = 'trained_models'
 tensorboard = pl_loggers.TensorBoardLogger("tb_logs", name="UnetAttTask", version=model_version)
-
+early_stop_callback = EarlyStopping(monitor="val_acc_epoch", check_on_train_epoch_end=True,
+                                    stopping_threshold=0.98,
+                                    patience=1500,
+                                    min_delta=0.000000001, verbose=True, mode="max")
 
 checkpoint_callback = ModelCheckpoint(
     dirpath=os.path.join(os.path.abspath(os.path.dirname(__file__)), models_dir, model_version), verbose=True,
     save_top_k=1, filename=model_version)
 trainer = pl.Trainer(
-    callbacks=[checkpoint_callback, TQDMProgressBar(refresh_rate=10)],
-    accelerator='gpu',
+    callbacks=[ checkpoint_callback, TQDMProgressBar(refresh_rate=10)],
+    accelerator='gpu', check_val_every_n_epoch=True,
     devices=[0],
-    logger=tensorboard, max_epochs=20000)
+    logger=tensorboard, max_epochs=100000)
 
 model = LitUnet(model=UnetAtt(), learning_rate=0.01)
 
@@ -941,11 +712,20 @@ if os.path.isfile(os.path.join(os.path.abspath(os.path.dirname(__file__)), model
                                model_version + '.ckpt')):
 
     trainer.fit(model=LitUnet(model=UnetAtt(), learning_rate=0.01), datamodule=dm,
-                ckpt_path=os.path.join(os.path.abspath(os.path.dirname(__file__)),models_dir, model_version,
+                ckpt_path=os.path.join(os.path.abspath(os.path.dirname(__file__)), models_dir, model_version,
                                        model_version + '.ckpt'))
 else:
     trainer.fit(model=LitUnet(model=UnetAtt(), learning_rate=0.01), datamodule=dm)
 
 trainer.test(model=LitUnet(model=UnetAtt(), learning_rate=0.01), datamodule=dm,
-             ckpt_path=os.path.join(os.path.abspath(os.path.dirname(__file__)),models_dir, model_version,
+             ckpt_path=os.path.join(os.path.abspath(os.path.dirname(__file__)), models_dir, model_version,
                                     model_version + '.ckpt'))
+
+predictions = trainer.predict(model=LitUnet(model=UnetAtt(), learning_rate=0.01), datamodule=dm,
+                              ckpt_path=os.path.join(os.path.abspath(os.path.dirname(__file__)), models_dir,
+                                                     model_version,
+                                                     model_version + '.ckpt'))
+predictions = torch.cat([y_pred for y_pred in predictions]).detach().numpy()
+full = pd.read_csv(os.path.join(dm.root_folder, 'processed', dm.dest_name + '_full.csv'))
+full['predicted'] = predictions
+full.to_csv(os.path.join(dm.root_folder, 'processed', dm.dest_name + '_full.csv'), index=False)

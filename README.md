@@ -3,8 +3,13 @@ The human leukocyte antigen (HLA) system is a complex of genes on chromosome 6 i
 
 
 ### Data
-To download the data visit: 
+To download the data visit:
+
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7652206.svg)](https://doi.org/10.5281/zenodo.7652206)
+Download and put in data folder in root of project.
+
+HLA Alleles list [IPD-IMGT/HLA](https://www.ebi.ac.uk/ipd/imgt/hla/download/)
+
 
 To train the personalized models run train_pipe.py
 To generate statics run statistics_pipe.py
@@ -15,3 +20,7 @@ To train and evaluate tumor specific model run cedar_tcr.py for all tissues. Ini
                                 allellist_file=allellist_file, 
                                 transformation_function=calculate_measures,
                                 batch_size=512,cell_tissue_type='Lymphoid') `
+
+Training produces tensorboard logs and trained models .ckpt in tb_logs and trained models folders respectively.
+The folders are created and populated by the training procedure.
+To visualize tensorboard logs run `tensorboard --logdir tb_logs` in cmd
