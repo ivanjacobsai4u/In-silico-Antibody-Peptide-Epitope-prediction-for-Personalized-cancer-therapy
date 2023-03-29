@@ -24,3 +24,13 @@ To train and evaluate tumor specific model run cedar_tcr.py for all tissues. Ini
 Training produces tensorboard logs and trained models .ckpt in tb_logs and trained models folders respectively.
 The folders are created and populated by the training procedure.
 To visualize tensorboard logs run `tensorboard --logdir tb_logs` in cmd
+# Citation
+AUTHOR=Jacobs Ivan, Ming Lim Chwee, Mong Jamie, Maragoudakis Manolis, Malik Nishant
+TITLE=In silico antibody-peptide epitope prediction for personalized cancer therapy  
+JOURNAL=Frontiers in Applied Mathematics and Statistics     
+VOLUME=9      
+YEAR=2023   
+URL=https://www.frontiersin.org/articles/10.3389/fams.2023.1150381     
+DOI=10.3389/fams.2023.1150381    
+ISSN=2297-4687   
+ABSTRACT=The human leukocyte antigen (HLA) system is a complex of genes on chromosome 6 in humans that encodes cell surface proteins responsible for regulating the immune system. Viral peptides presented to cancer cell surfaces by the HLA trigger the immune system to kill the cells, creating antibody–peptide epitopes (APE). This study proposes an in silico approach to identify patient-specific APEs by applying complex networks diagnostics on a novel multiplex data structure as an input for a deep learning model. The proposed analytical model identifies patient- and tumor-specific APEs with as few as 20 labeled data points. In addition, the proposed data structure employs complex network theory and other statistical approaches that can better explain and reduce the black box effect of deep learning. The proposed approach achieves an F1-score of 80% and 93% on patients one and two, respectively, and above 90% on tumor-specific tasks. In addition, it minimizes the required training time and the number of parameters.
